@@ -68,19 +68,25 @@ export default function SignInForm() {
     try {
       setIsSubmitting(true);
 
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      const destination =
+        redirectTo && redirectTo.startsWith("/app") ? redirectTo : "/app";
+
       const {
         data: { user },
         error,
-      } = await supabase.auth.signUp(data);
+      } = await supabase.auth.signUp({
+        ...data,
+        options: {
+          emailRedirectTo: `${siteUrl}${destination}`,
+        },
+      });
 
       if (!user || error) {
         throw error;
       }
 
       await createProfileMutation(user.id);
-
-      const destination =
-        redirectTo && redirectTo.startsWith("/app") ? redirectTo : "/app";
 
       window.location.href = destination;
     } catch (error) {
