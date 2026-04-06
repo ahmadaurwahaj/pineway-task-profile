@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ADD COLUMN "usernameChangedAt" timestamp with time zone;
