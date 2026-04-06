@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
