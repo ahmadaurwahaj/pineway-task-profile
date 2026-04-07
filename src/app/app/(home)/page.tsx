@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import ProfileSettingsForm from "./profile-settings-form";
+
+export const metadata: Metadata = {
+  title: "Profile Settings - Pineway",
+  description: "Manage your Pineway profile, avatar, and preferences",
+  icons: {
+    icon: "/pineway-logo-mark.svg",
+  },
+};
 
 export default function HomePage() {
   return (

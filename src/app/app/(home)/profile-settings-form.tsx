@@ -1,5 +1,4 @@
 "use client";
-
 import { Avatar } from "@/components/ui/avatar/avatar";
 import { Button } from "@/components/ui/button/button";
 import { HelperText } from "@/components/ui/helper-text/helper-text";
@@ -16,23 +15,18 @@ import {
 } from "./profile-form-schema";
 import { uploadAvatar } from "./upload-avatar";
 import { useProfile, useUpdateProfile } from "./use-profile";
-
 export default function ProfileSettingsForm() {
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !profile?.userId) return;
-
     const preview = URL.createObjectURL(file);
     setAvatarPreview(preview);
     setIsUploadingAvatar(true);
@@ -55,7 +49,6 @@ export default function ProfileSettingsForm() {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
-
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     values: {
@@ -69,10 +62,8 @@ export default function ProfileSettingsForm() {
     },
     mode: "onChange",
   });
-
   const isDirty = form.formState.isDirty;
   const isValid = form.formState.isValid;
-
   const onSubmit = async (values: ProfileFormValues) => {
     try {
       await updateProfile.mutateAsync(values);
@@ -92,11 +83,9 @@ export default function ProfileSettingsForm() {
       });
     }
   };
-
   if (isLoading) {
     return <ProfileSettingsSkeleton />;
   }
-
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="w-full pb-24">
       <div className="mx-auto max-w-4xl rounded-2xl border border-gray-200 bg-white">
@@ -151,7 +140,6 @@ export default function ProfileSettingsForm() {
             />
           </div>
         </div>
-
         <div>
           <FormRow
             label="Email"
@@ -168,7 +156,6 @@ export default function ProfileSettingsForm() {
               </HelperText>
             )}
           </FormRow>
-
           <FormRow label="Name" description="Your display name.">
             <Input
               {...form.register("displayName")}
@@ -182,7 +169,6 @@ export default function ProfileSettingsForm() {
               </HelperText>
             )}
           </FormRow>
-
           <FormRow
             label="Username"
             description="This can only be changed once every 14 days."
@@ -190,7 +176,8 @@ export default function ProfileSettingsForm() {
             <Input
               {...form.register("username")}
               staticContent={{
-                text: `${new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000")}`,
+                text: `${new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").hostname}/`,
+                hideOnMobile: true,
               }}
               data-error={form.formState.errors.username ? "true" : undefined}
             />
@@ -200,7 +187,6 @@ export default function ProfileSettingsForm() {
               </HelperText>
             )}
           </FormRow>
-
           <FormRow
             label="Profile note"
             description="This is only visible to you."
@@ -219,9 +205,8 @@ export default function ProfileSettingsForm() {
           </FormRow>
         </div>
       </div>
-
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center justify-between rounded-2xl border max-w-xl w-full border-gray-200 bg-white px-5 py-2 sm:px-2 shadow-lg">
-        <span className="text-sm text-gray-500 px-2">
+      <div className="fixed bottom-8 left-4 right-4 mx-auto flex items-center justify-between gap-3 rounded-2xl border max-w-xl border-gray-200 bg-white px-3 py-2 sm:px-5 shadow-lg">
+        <span className="text-xs sm:text-sm text-gray-500 truncate">
           Your basic information.
         </span>
         <Button
@@ -236,7 +221,6 @@ export default function ProfileSettingsForm() {
     </form>
   );
 }
-
 function FormRow({
   label,
   description,
@@ -258,7 +242,6 @@ function FormRow({
     </div>
   );
 }
-
 function ProfileSettingsSkeleton() {
   return (
     <div className="w-full animate-pulse pb-24">

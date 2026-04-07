@@ -2,6 +2,9 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Welcome to Pineway",
+  icons: {
+    icon: "/pineway-logo-mark.svg",
+  },
 };
 
 export default async function AuthLayout({

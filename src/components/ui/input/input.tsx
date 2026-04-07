@@ -29,6 +29,7 @@ interface InputProps extends Omit<
   staticContent?: {
     text?: string;
     symbol?: string;
+    hideOnMobile?: boolean;
   };
   withCurrency?: boolean;
   showClearInput?: boolean;
@@ -125,9 +126,23 @@ function Input({
     setPaddingEnd(size === "sm" ? 10 : 12);
   }, [size]);
   React.useEffect(() => {
-    if (leadingContentAreaRef.current) {
-      const width = leadingContentAreaRef.current.offsetWidth;
-      setPaddingStart(width);
+    const updatePaddingStart = () => {
+      if (leadingContentAreaRef.current) {
+        const computedStyle = window.getComputedStyle(
+          leadingContentAreaRef.current,
+        );
+        if (computedStyle.display === "none") {
+          setPaddingStart(size === "sm" ? 10 : 12);
+        } else {
+          const width = leadingContentAreaRef.current.offsetWidth;
+          setPaddingStart(width);
+        }
+      }
+    };
+    updatePaddingStart();
+    if (staticContent?.hideOnMobile) {
+      window.addEventListener("resize", updatePaddingStart);
+      return () => window.removeEventListener("resize", updatePaddingStart);
     }
   }, [size, staticContent, IconLeading]);
   React.useEffect(() => {
@@ -147,7 +162,10 @@ function Input({
       {(staticContent || IconLeading) && (
         <div
           ref={leadingContentAreaRef}
-          className="absolute top-0 left-0 bottom-0 my-auto ml-0.5 inline-flex items-center"
+          className={cn(
+            "absolute top-0 left-0 bottom-0 my-auto ml-0.5 inline-flex items-center",
+            staticContent?.hideOnMobile && "hidden lg:inline-flex",
+          )}
         >
           {IconLeading && (
             <IconLeading
