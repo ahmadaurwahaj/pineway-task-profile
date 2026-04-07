@@ -4,11 +4,8 @@ import { Button } from "@/components/ui/button/button";
 import { Input } from "@/components/ui/input/input";
 import { Label } from "@/components/ui/label/label";
 import { showToast } from "@/components/ui/toast/toast";
-import { httpClient } from "@/lib/http/client";
 import { createClient } from "@/lib/supabase/client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { HTMLInputTypeAttribute, useRef, useState } from "react";
@@ -27,24 +24,6 @@ export default function SignInForm() {
   const [inputType, setInputType] =
     useState<HTMLInputTypeAttribute>("password");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const { mutateAsync: createProfileMutation } = useMutation({
-    mutationFn: async (userId: string) => {
-      const result = await parseResponse(
-        httpClient.actions.profile.$post({
-          json: {
-            userId,
-          },
-        }),
-      );
-
-      if (!result.success) {
-        throw new Error(result.error.userMessage);
-      }
-
-      return result.data;
-    },
-  });
 
   const signinFormSchema = z.object({
     email: z.email({
@@ -68,7 +47,8 @@ export default function SignInForm() {
     try {
       setIsSubmitting(true);
 
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      const siteUrl =
+        process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const destination =
         redirectTo && redirectTo.startsWith("/app") ? redirectTo : "/app";
 
@@ -85,8 +65,6 @@ export default function SignInForm() {
       if (!user || error) {
         throw error;
       }
-
-      await createProfileMutation(user.id);
 
       window.location.href = destination;
     } catch (error) {

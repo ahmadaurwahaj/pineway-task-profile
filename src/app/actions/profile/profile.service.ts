@@ -191,9 +191,7 @@ export async function updateUserProfile(
 
     const db = await createDrizzleSupabaseClient();
 
-    // All DB operations in a single RLS transaction to prevent race conditions
     const txResult = await db.rls(async (tx) => {
-      // Enforce 14-day username change restriction (only after first manual change)
       if (profileData.username) {
         const [current] = await tx
           .select({
@@ -218,12 +216,10 @@ export async function updateUserProfile(
           }
           profileData = { ...profileData, usernameChangedAt: new Date() };
         } else {
-          // Same username submitted — drop it to avoid a pointless update
           delete profileData.username;
         }
       }
 
-      // Recompute hasProfileUpdates AFTER potential username mutation
       const hasProfileUpdates = Object.keys(profileData).length > 0;
 
       if (hasProfileUpdates) {
@@ -257,7 +253,6 @@ export async function updateUserProfile(
       if (!created.success) {
         return failure(created.error);
       }
-      // Re-apply updates on fresh profile if there was data to set
       const hasProfileUpdates = Object.keys(profileData).length > 0;
       if (hasProfileUpdates) {
         const [retried] = await db.rls(async (tx) => {
