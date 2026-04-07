@@ -30,9 +30,12 @@ export default async function ProfilePage({
       <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl border border-gray-200 bg-white p-8 text-center">
         <Avatar src={profile.avatarUrl ?? ""} type="circular" size="96" />
         <div className="flex flex-col gap-1">
-          <h1 className="text-lg font-semibold text-gray-900">
-            @{profile.username}
-          </h1>
+          {profile.displayName && (
+            <h1 className="text-lg font-semibold text-gray-900">
+              {profile.displayName}
+            </h1>
+          )}
+          <p className="text-sm text-gray-500">@{profile.username}</p>
         </div>
       </div>
     </div>

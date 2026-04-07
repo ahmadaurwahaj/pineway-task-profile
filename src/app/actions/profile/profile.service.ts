@@ -6,11 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { numbers } from "nanoid-dictionary";
-import { db } from "~/db";
+import { createDrizzleSupabaseClient } from "~/db";
 import type { Profile, UpdateProfile } from "~/db/schema/profiles";
 import { profilesTable } from "~/db/schema/profiles";
 
-export type ProfileWithUser = Profile & { email: string; displayName: string };
+export type ProfileWithUser = Profile & { email: string };
 
 const nanoid = customAlphabet(numbers, 6);
 
@@ -34,11 +34,15 @@ export async function createProfile(userId: string): Promise<Result<Profile>> {
     const localPart = email.split("@")[0];
     const username = localPart.toLowerCase().replace(/[^a-z0-9_]/g, "_");
     const randomizedUsername = `${username}_${nanoid()}`;
+    const displayName = user.user_metadata?.display_name ?? "";
 
-    const [profile] = await db
-      .insert(profilesTable)
-      .values({ userId, username: randomizedUsername })
-      .returning();
+    const db = await createDrizzleSupabaseClient();
+    const [profile] = await db.rls(async (tx) => {
+      return tx
+        .insert(profilesTable)
+        .values({ userId, username: randomizedUsername, displayName })
+        .returning();
+    });
 
     return success(profile);
   } catch (error) {
@@ -67,13 +71,15 @@ export async function getUserProfile(): Promise<Result<ProfileWithUser>> {
       });
     }
 
-    let [profile] = await db
-      .select()
-      .from(profilesTable)
-      .where(eq(profilesTable.userId, user.id));
+    const db = await createDrizzleSupabaseClient();
+    let [profile] = await db.rls(async (tx) => {
+      return tx
+        .select()
+        .from(profilesTable)
+        .where(eq(profilesTable.userId, user.id));
+    });
 
     if (!profile) {
-      // Auto-create profile for users who bypassed the sign-up form
       const created = await createProfile(user.id);
       if (!created.success) {
         return failure(created.error);
@@ -84,7 +90,8 @@ export async function getUserProfile(): Promise<Result<ProfileWithUser>> {
     return success({
       ...profile,
       email: user.email ?? "",
-      displayName: user.user_metadata?.display_name ?? "",
+      displayName:
+        profile.displayName ?? user.user_metadata?.display_name ?? "",
     });
   } catch (error) {
     return captureAndReturnError({
@@ -98,15 +105,19 @@ export async function getUserProfile(): Promise<Result<ProfileWithUser>> {
 
 export async function getPublicUserProfile(
   username: string,
-): Promise<Result<Pick<Profile, "username" | "avatarUrl">>> {
+): Promise<Result<Pick<Profile, "username" | "avatarUrl" | "displayName">>> {
   try {
-    const [profile] = await db
-      .select({
-        username: profilesTable.username,
-        avatarUrl: profilesTable.avatarUrl,
-      })
-      .from(profilesTable)
-      .where(eq(profilesTable.username, username));
+    const db = await createDrizzleSupabaseClient();
+    const [profile] = await db.rls(async (tx) => {
+      return tx
+        .select({
+          username: profilesTable.username,
+          avatarUrl: profilesTable.avatarUrl,
+          displayName: profilesTable.displayName,
+        })
+        .from(profilesTable)
+        .where(eq(profilesTable.username, username));
+    });
 
     if (!profile) {
       return failure({
@@ -129,7 +140,6 @@ export async function getPublicUserProfile(
 
 export type UpdateProfilePayload = UpdateProfile & {
   email?: string;
-  displayName?: string;
 };
 
 export async function updateUserProfile(
@@ -150,8 +160,8 @@ export async function updateUserProfile(
       });
     }
 
-    const { email, displayName, ...profileDataInit } = data;
-    let profileData: typeof profileDataInit = { ...profileDataInit };
+    const { email, ...profileDataInit } = data;
+    let profileData: UpdateProfile = { ...profileDataInit };
 
     if (email && email !== user.email) {
       const { error: emailError } = await supabase.auth.updateUser({
@@ -166,9 +176,9 @@ export async function updateUserProfile(
       }
     }
 
-    if (displayName !== undefined) {
+    if (profileData.displayName !== undefined) {
       const { error: nameError } = await supabase.auth.updateUser({
-        data: { display_name: displayName },
+        data: { display_name: profileData.displayName },
       });
       if (nameError) {
         return failure({
@@ -179,87 +189,88 @@ export async function updateUserProfile(
       }
     }
 
-    const hasProfileUpdates = Object.keys(profileData).length > 0;
+    const db = await createDrizzleSupabaseClient();
 
-    // Enforce 14-day username change restriction (only after first manual change)
-    if (profileData.username) {
-      const [current] = await db
-        .select({
-          username: profilesTable.username,
-          usernameChangedAt: profilesTable.usernameChangedAt,
-        })
-        .from(profilesTable)
-        .where(eq(profilesTable.userId, user.id));
+    // All DB operations in a single RLS transaction to prevent race conditions
+    const txResult = await db.rls(async (tx) => {
+      // Enforce 14-day username change restriction (only after first manual change)
+      if (profileData.username) {
+        const [current] = await tx
+          .select({
+            username: profilesTable.username,
+            usernameChangedAt: profilesTable.usernameChangedAt,
+          })
+          .from(profilesTable)
+          .where(eq(profilesTable.userId, user.id));
 
-      if (current && current.username !== profileData.username) {
-        // usernameChangedAt is null for auto-generated usernames — no restriction on first change
-        if (current.usernameChangedAt) {
-          const daysSinceChange =
-            (Date.now() - new Date(current.usernameChangedAt).getTime()) /
-            (1000 * 60 * 60 * 24);
-          if (daysSinceChange < 14) {
-            const daysLeft = Math.ceil(14 - daysSinceChange);
-            return failure({
-              code: ErrorCode.BUSINESS_LOGIC_ERROR,
-              message: "Username changed too recently",
-              userMessage: `You can change your username again in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
-            });
+        if (current && current.username !== profileData.username) {
+          if (current.usernameChangedAt) {
+            const daysSinceChange =
+              (Date.now() - new Date(current.usernameChangedAt).getTime()) /
+              (1000 * 60 * 60 * 24);
+            if (daysSinceChange < 14) {
+              const daysLeft = Math.ceil(14 - daysSinceChange);
+              return {
+                blocked: true as const,
+                daysLeft,
+              };
+            }
           }
+          profileData = { ...profileData, usernameChangedAt: new Date() };
+        } else {
+          // Same username submitted — drop it to avoid a pointless update
+          delete profileData.username;
         }
-        // Stamp the change time only when username actually changes
-        profileData = { ...profileData, usernameChangedAt: new Date() };
-      } else {
-        // Same username submitted — drop it to avoid a pointless update
-        delete profileData.username;
       }
-    }
 
-    let profile: Profile;
+      // Recompute hasProfileUpdates AFTER potential username mutation
+      const hasProfileUpdates = Object.keys(profileData).length > 0;
 
-    if (hasProfileUpdates) {
-      const [updated] = await db
-        .update(profilesTable)
-        .set(profileData)
-        .where(eq(profilesTable.userId, user.id))
-        .returning();
-
-      if (!updated) {
-        // No profile row yet — create one then apply the update
-        const created = await createProfile(user.id);
-        if (!created.success) {
-          return failure(created.error);
-        }
-        const [retried] = await db
+      if (hasProfileUpdates) {
+        const [updated] = await tx
           .update(profilesTable)
           .set(profileData)
           .where(eq(profilesTable.userId, user.id))
           .returning();
-        if (!retried) {
-          return failure({
-            code: ErrorCode.NOT_FOUND,
-            message: "Profile not found",
-            userMessage: "We couldn't find the profile to update.",
-          });
-        }
-        profile = retried;
+        return { blocked: false as const, profile: updated ?? null };
       } else {
-        profile = updated;
+        const [existing] = await tx
+          .select()
+          .from(profilesTable)
+          .where(eq(profilesTable.userId, user.id));
+        return { blocked: false as const, profile: existing ?? null };
       }
-    } else {
-      let [existing] = await db
-        .select()
-        .from(profilesTable)
-        .where(eq(profilesTable.userId, user.id));
+    });
 
-      if (!existing) {
-        const created = await createProfile(user.id);
-        if (!created.success) {
-          return failure(created.error);
-        }
-        existing = created.data;
+    if (txResult.blocked) {
+      return failure({
+        code: ErrorCode.BUSINESS_LOGIC_ERROR,
+        message: "Username changed too recently",
+        userMessage: `You can change your username again in ${txResult.daysLeft} day${txResult.daysLeft === 1 ? "" : "s"}.`,
+      });
+    }
+
+    let profile = txResult.profile;
+
+    if (!profile) {
+      const created = await createProfile(user.id);
+      if (!created.success) {
+        return failure(created.error);
       }
-
-      profile = existing;
+      // Re-apply updates on fresh profile if there was data to set
+      const hasProfileUpdates = Object.keys(profileData).length > 0;
+      if (hasProfileUpdates) {
+        const [retried] = await db.rls(async (tx) => {
+          return tx
+            .update(profilesTable)
+            .set(profileData)
+            .where(eq(profilesTable.userId, user.id))
+            .returning();
+        });
+        profile = retried ?? created.data;
+      } else {
+        profile = created.data;
+      }
     }
 
     const {
@@ -270,6 +281,7 @@ export async function updateUserProfile(
       ...profile,
       email: refreshedUser?.email ?? user.email ?? "",
       displayName:
+        profile.displayName ??
         refreshedUser?.user_metadata?.display_name ??
         user.user_metadata?.display_name ??
         "",

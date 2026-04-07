@@ -18,6 +18,7 @@ export const profilesTable = pgTable(
     username: text().notNull().unique(),
     avatarUrl: text(),
     bio: text(),
+    displayName: text(),
     usernameChangedAt: timestamp({ withTimezone: true }),
   },
   (table) => [

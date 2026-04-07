@@ -1,12 +1,12 @@
 -- Enable Row Level Security on the profiles table
 alter table "profiles" enable row level security;
 
--- SELECT: authenticated users can only read their own profile
-create policy "profiles_select_own"
+-- SELECT: anyone (including anon) can read profiles for public profile pages
+create policy "profiles_select_public"
 on "profiles"
 for select
-to authenticated
-using (auth.uid() = "userId");
+to anon, authenticated
+using (true);
 
 -- INSERT: authenticated users can only insert their own profile
 create policy "profiles_insert_own"
