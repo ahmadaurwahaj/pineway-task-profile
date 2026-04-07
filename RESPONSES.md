@@ -35,10 +35,6 @@ The `auth.users` metadata is not visible to the `anon` role, so I added a `displ
 
 The `UpdateProfileSchema` in the Hono route checks username format (min 3, max 30, only `a-z`, `0-9`, and `_`), bio length (max 500), and display name (min 1 if provided). This matches the client-side schema and stops anyone from bypassing frontend validation by calling the API directly.
 
-### Type safety with satisfies
-
-I added `satisfies z.ZodType<UpdateProfilePayload>` back to the route schema. This makes the TypeScript compiler show an error if the Zod schema and the service types go out of sync, so a new DB column cannot be forgotten in the validation layer.
-
 ---
 
 ## Notes
@@ -50,7 +46,5 @@ I added `satisfies z.ZodType<UpdateProfilePayload>` back to the route schema. Th
 `0008_add_display_name.sql` adds the `displayName` column to the profiles table.
 
 `0009_reenable_profiles_rls.sql` re-enables RLS on the profiles table with the correct policies.
-
-Migrations are applied to the remote database using `supabase db push`, not at build time. The Vercel build command only runs `next build`.
 
 `getUserProfile` and `updateUserProfile` both have a fallback that creates a profile row automatically if a user exists in Auth but has no profile yet. This covers edge cases like users created directly in the Supabase dashboard.

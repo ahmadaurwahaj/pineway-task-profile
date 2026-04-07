@@ -245,7 +245,7 @@ function FormRow({
 function ProfileSettingsSkeleton() {
   return (
     <div className="w-full animate-pulse pb-24">
-      <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white">
+      <div className="mx-auto max-w-4xl rounded-2xl border border-gray-200 bg-white">
         <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-5 sm:p-6">
           <div className="flex flex-col gap-2">
             <div className="h-4 w-24 rounded bg-gray-100" />
