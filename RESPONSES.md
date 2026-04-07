@@ -2,7 +2,7 @@
 
 ## Live URL
 
-https://pineway-hiring.vercel.app
+https://pineway-task-profile.vercel.app/
 
 ---
 
